@@ -4,7 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * <p>description:  </p>
+ * <p>description: 远程仓库状态 </p>
  *
  * @author CryptoNeedle
  * @date 2026-04-28

@@ -3,10 +3,8 @@ package com.bubbles.app.opensource.service;
 import com.bubbles.app.opensource.entity.Tag;
 import com.bubbles.app.opensource.repository.TagRepository;
 import com.bubbles.app.opensource.vo.TagAddVO;
-import com.bubbles.app.opensource.vo.TagColorVO;
 import com.bubbles.app.opensource.vo.TagSaveVO;
 import com.bubbles.app.opensource.vo.TagSelectVO;
-import com.bubbles.app.opensource.vo.TagSortVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,17 +27,12 @@ public class TagService {
         Integer maxSort = tagRepository.findMaxSort();
         int sort = (maxSort != null) ? maxSort + 1 : 0;
         
-        Tag tag = Tag.builder()
-                     .name(vo.getName())
-                     .color(vo.getColor())
-                     .sort(sort)
-                     .build();
+        Tag tag = Tag.builder().name(vo.getName()).color(vo.getColor()).sort(sort).build();
         tagRepository.save(tag);
     }
     
     public void saveTag(Long id, TagSaveVO vo) {
-        Tag tag = tagRepository.findById(id)
-                               .orElseThrow(() -> new IllegalArgumentException("标签不存在: " + id));
+        Tag tag = tagRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("标签不存在: " + id));
         tag.setName(vo.getName());
         tag.setSort(vo.getSort());
         tag.setColor(vo.getColor());

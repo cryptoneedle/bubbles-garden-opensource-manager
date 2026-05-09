@@ -1,6 +1,7 @@
 package com.bubbles.app.opensource.controller;
 
 import com.bubbles.app.opensource.service.RepoService;
+import com.bubbles.common.core.Result;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,8 +19,15 @@ public class RepoController {
     private RepoService repoService;
     
     @PostMapping("/scan")
-    public void scanRepo() {
-        repoService.scanRepo();
+    public Result<?> scanLocalRepo() {
+        repoService.scanLocalRepo();
+        return Result.success();
+    }
+    
+    @PostMapping("/sync")
+    public Result<?> syncLocalRepo() {
+        repoService.syncLocalRepo();
+        return Result.success();
     }
     
     @PostMapping("/add")

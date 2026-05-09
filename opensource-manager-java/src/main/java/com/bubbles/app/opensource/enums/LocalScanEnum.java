@@ -4,22 +4,17 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * <p>description: 来源枚举 </p>
+ * <p>description: 本地扫描状态 </p>
  *
  * @author CryptoNeedle
  * @date 2026-04-28
  */
 @Getter
 @AllArgsConstructor
-public enum SourceEnum {
+public enum LocalScanEnum {
     
-    GITHUB("Github"),
-    GITEE("Gitee"),
-    GITLAB("Gitlab"),
-    GITCODE("Gitcode"),
-    LOCAL("Local"),
-    TEMP("Temp"),
-    AI("AI"),
+    EXISTS("匹配"),
+    NOT_EXISTS("不存在"),
     ;
     
     private final String value;

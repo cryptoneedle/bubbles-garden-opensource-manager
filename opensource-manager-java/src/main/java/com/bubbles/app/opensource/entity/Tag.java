@@ -34,13 +34,13 @@ public class Tag {
     @Column(comment = "标签名")
     private String name;
     
+    @Column(comment = "颜色")
+    private String color;
+    
     @Column(comment = "排序")
     private Integer sort;
     
-    @Column(comment = "颜色")
-    private String color;
-
-    @ManyToMany(mappedBy = "tags")
     @Builder.Default
+    @ManyToMany(mappedBy = "tags")
     private Set<Repo> repos = new HashSet<>();
 }
