@@ -38,8 +38,9 @@ public class RepoController {
     }
     
     @PostMapping("/{id}/clone")
-    public void clone(@PathVariable("id") Long id) {
+    public Result<?>  clone(@PathVariable("id") Long id) {
         repoService.cloneRepo(id);
+        return Result.success();
     }
     
     @PostMapping("/{id}/pull")
@@ -49,7 +50,8 @@ public class RepoController {
     }
     
     @PutMapping("/{id}/ability")
-    public void updateAbility(@PathVariable Long id, @RequestParam("ability") String ability) {
+    public Result<?>  updateAbility(@PathVariable Long id, @RequestParam("ability") String ability) {
         repoService.updateAbility(id, ability);
+        return Result.success();
     }
 }

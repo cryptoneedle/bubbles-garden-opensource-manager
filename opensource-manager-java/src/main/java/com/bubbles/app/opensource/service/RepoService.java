@@ -7,6 +7,7 @@ import com.bubbles.app.opensource.enums.LocalScanEnum;
 import com.bubbles.app.opensource.enums.RemoteStatusEnum;
 import com.bubbles.app.opensource.enums.SourceEnum;
 import com.bubbles.app.opensource.repository.RepoRepository;
+import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.MergeResult;
@@ -33,11 +34,14 @@ import java.util.regex.Pattern;
 public class RepoService {
     
     @Autowired
+    private RepoService repoService;
+    @Autowired
     private RepoRepository repoRepository;
     
     @Value("${repo.root}")
     private String repoRoot;
     
+    @Transactional
     public void scanLocalRepo() {
         List<Repo> repoList = repoRepository.findAll();
         for (Repo repo : repoList) {
@@ -47,33 +51,37 @@ public class RepoService {
             } else {
                 repo.setScanStatus(LocalScanEnum.NOT_EXISTS);
             }
-            repoRepository.save(repo);
         }
+        repoRepository.saveAll(repoList);
     }
     
+    @Transactional
     public void syncLocalRepo() {
         scanLocalRepo();
-        List<Repo> repoList = repoRepository.findAll()
-                                            .stream()
-                                            .filter(repo -> !repo.hasRemote())
-                                            .filter(repo -> repo.getScanStatus().equals(LocalScanEnum.NOT_EXISTS))
-                                            .toList();
         
         // 创建本地文件夹
         FileUtil.mkdir(repoRoot + File.separator + SourceEnum.LOCAL.getValue());
         FileUtil.mkdir(repoRoot + File.separator + SourceEnum.AI.getValue());
         
+        List<Repo> repoList = repoRepository.findAll()
+                                            .stream()
+                                            .filter(Repo::hasRemote)
+                                            .filter(repo -> repo.getScanStatus().equals(LocalScanEnum.NOT_EXISTS))
+                                            .toList();
+        
         for (Repo repo : repoList) {
             // 克隆远程仓库
-            cloneRepo(repo);
+            repoService.cloneRepo(repo);
         }
     }
     
+    @Transactional
     public void cloneRepo(Long id) {
         Repo repo = repoRepository.findById(id).orElseThrow(() -> new RuntimeException("仓库不存在"));
-        cloneRepo(repo);
+        repoService.cloneRepo(repo);
     }
     
+    @Transactional
     public void cloneRepo(Repo repo) {
         if (!repo.hasRemote()) {
             throw new RuntimeException("不是远程仓库，无法克隆");
@@ -94,6 +102,7 @@ public class RepoService {
                .call();
         } catch (Exception e) {
             log.error("克隆远程仓库失败: {}", repo.getRemoteAddress(), e);
+            throw new RuntimeException("克隆远程仓库失败: " + repo.getRemoteAddress(), e);
         }
     }
     
@@ -198,6 +207,7 @@ public class RepoService {
             repoRepository.save(repo);
         } catch (Exception e) {
             log.error("拉取仓库异常: {}", repo.getRemoteAddress(), e);
+            throw new RuntimeException("拉取仓库异常: " + repo.getRemoteAddress(), e);
         }
     }
     
