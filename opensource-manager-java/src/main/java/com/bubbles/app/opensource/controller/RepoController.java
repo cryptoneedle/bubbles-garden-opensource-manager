@@ -2,6 +2,7 @@ package com.bubbles.app.opensource.controller;
 
 import com.bubbles.app.opensource.service.RepoService;
 import com.bubbles.common.core.Result;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,8 +32,9 @@ public class RepoController {
     }
     
     @PostMapping("/add")
-    public void addRepo(@RequestBody String content) {
+    public Result<?> addRepo(@RequestParam("content") String content) {
         repoService.addRepo(content);
+        return Result.success();
     }
     
     @PostMapping("/{id}/clone")
@@ -41,8 +43,9 @@ public class RepoController {
     }
     
     @PostMapping("/{id}/pull")
-    public void pull(@PathVariable("id") Long id) {
+    public Result<?> pull(@PathVariable("id") Long id) {
         repoService.pullRepo(id);
+        return Result.success();
     }
     
     @PutMapping("/{id}/ability")

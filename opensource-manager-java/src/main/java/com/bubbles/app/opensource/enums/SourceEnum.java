@@ -18,7 +18,6 @@ public enum SourceEnum {
     GITLAB("Gitlab"),
     GITCODE("Gitcode"),
     LOCAL("Local"),
-    TEMP("Temp"),
     AI("AI"),
     ;
     

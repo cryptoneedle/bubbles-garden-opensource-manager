@@ -38,8 +38,11 @@ public class Repo {
     @Column(comment = "仓库来源")
     private SourceEnum source;
     
-    @Column(comment = "地址")
-    private String address;
+    @Column(comment = "远程地址")
+    private String remoteAddress;
+    
+    @Column(comment = "相对地址")
+    private String relativePath;
     
     @Column(comment = "后缀")
     private String suffix;
@@ -71,28 +74,28 @@ public class Repo {
     @Builder.Default
     private Set<Tag> tags = new HashSet<>();
     
-    public boolean isRemote() {
+    public boolean hasRemote() {
         return switch (source) {
             case GITHUB, GITEE, GITCODE, GITLAB -> true;
-            case LOCAL, TEMP, AI -> false;
+            case LOCAL, AI -> false;
             default -> throw new RuntimeException("未定义仓库来源");
         };
     }
     
-    public String genLocalPath(String rootDir) {
-        return switch (source) {
-            case GITHUB, GITEE, GITCODE -> "%s/%s/%s/%s".formatted(rootDir, source.getValue(), userName, repoName);
-            case GITLAB -> "%s/%s_%s/%s/%s".formatted(rootDir, source.getValue(), suffix, userName, repoName);
-            case LOCAL, TEMP, AI -> "%s/%s/%s".formatted(rootDir, source.getValue(), repoName);
-            default -> throw new RuntimeException("未定义仓库来源");
-        };
-    }
-    
-    public String genSshClone() {
-        return switch (source) {
-            case GITHUB, GITEE, GITCODE -> "git clone git@%s.com:/%s/%s".formatted(source.getValue().toLowerCase(), userName, repoName);
-            case GITLAB -> "git clone git@%s.com:/%s/%s".formatted(address, userName, repoName);
-            default -> null;
-        };
-    }
+    //public String genLocalPath(String rootDir) {
+    //    return switch (source) {
+    //        case GITHUB, GITEE, GITCODE -> "%s/%s/%s/%s".formatted(rootDir, source.getValue(), userName, repoName);
+    //        case GITLAB -> "%s/%s_%s/%s/%s".formatted(rootDir, source.getValue(), suffix, userName, repoName);
+    //        case LOCAL, TEMP, AI -> "%s/%s/%s".formatted(rootDir, source.getValue(), repoName);
+    //        default -> throw new RuntimeException("未定义仓库来源");
+    //    };
+    //}
+    //
+    //public String genSshClone() {
+    //    return switch (source) {
+    //        case GITHUB, GITEE, GITCODE -> "git clone git@%s.com:/%s/%s".formatted(source.getValue().toLowerCase(), userName, repoName);
+    //        case GITLAB -> "git clone git@%s.com:/%s/%s".formatted(remoteAddress, userName, repoName);
+    //        default -> null;
+    //    };
+    //}
 }
