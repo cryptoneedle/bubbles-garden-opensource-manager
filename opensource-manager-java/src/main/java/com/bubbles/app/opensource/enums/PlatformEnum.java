@@ -3,6 +3,8 @@ package com.bubbles.app.opensource.enums;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import java.io.File;
+
 /**
  * <p>description: 来源枚举 </p>
  *
@@ -11,7 +13,7 @@ import lombok.Getter;
  */
 @Getter
 @AllArgsConstructor
-public enum SourceEnum {
+public enum PlatformEnum {
     
     GITHUB("Github"),
     GITEE("Gitee"),

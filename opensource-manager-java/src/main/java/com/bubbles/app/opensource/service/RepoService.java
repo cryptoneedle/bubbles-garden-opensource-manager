@@ -3,22 +3,26 @@ package com.bubbles.app.opensource.service;
 import cn.hutool.v7.core.data.id.IdUtil;
 import cn.hutool.v7.core.io.file.FileUtil;
 import com.bubbles.app.opensource.entity.Repo;
-import com.bubbles.app.opensource.enums.LocalScanEnum;
+import com.bubbles.app.opensource.enums.AbilityEnum;
+import com.bubbles.app.opensource.enums.LocalStatusEnum;
+import com.bubbles.app.opensource.enums.PlatformEnum;
 import com.bubbles.app.opensource.enums.RemoteStatusEnum;
-import com.bubbles.app.opensource.enums.SourceEnum;
+import com.bubbles.app.opensource.properties.RepoProperties;
 import com.bubbles.app.opensource.repository.RepoRepository;
+import com.bubbles.app.opensource.util.RepoUtil;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.MergeResult;
 import org.eclipse.jgit.api.PullResult;
 import org.eclipse.jgit.lib.TextProgressMonitor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
-import java.io.PrintWriter;
+import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -33,185 +37,170 @@ import java.util.regex.Pattern;
 @Service
 public class RepoService {
     
+    @Lazy
     @Autowired
     private RepoService repoService;
+    
     @Autowired
     private RepoRepository repoRepository;
     
-    @Value("${repo.root}")
-    private String repoRoot;
+    @Autowired
+    private RepoProperties repoProperties;
+    
+    private static final Pattern GIT_URL_PATTERN = Pattern.compile("^(?:https://|git@)([^/:]+(?::\\d+)?)[/:](.+?)(?:\\.git)?(?:#.*)?/?$");
     
     @Transactional
-    public void scanLocalRepo() {
-        List<Repo> repoList = repoRepository.findAll();
-        for (Repo repo : repoList) {
-            String repoFile = repoRoot + File.separator + repo.getRelativePath();
-            if (FileUtil.exists(repoFile)) {
-                repo.setScanStatus(LocalScanEnum.EXISTS);
-            } else {
-                repo.setScanStatus(LocalScanEnum.NOT_EXISTS);
-            }
+    public Repo addRepo(String content) {
+        if (StringUtils.isBlank(content)) {
+            throw new RuntimeException("仓库地址不能为空");
         }
-        repoRepository.saveAll(repoList);
+        // 1. 去除 "git clone " 前缀和首尾空白
+        content = content.trim().replaceFirst("^git\\s+clone\\s+", "");
+        // 2.路径匹配
+        Matcher matcher = GIT_URL_PATTERN.matcher(content);
+        if (!matcher.matches()) {
+            throw new RuntimeException("无法识别的仓库地址: " + content);
+        }
+        // 3.信息提取
+        String platformPath = matcher.group(1);
+        String repoPath = matcher.group(2);
+        // 4.信息分析
+        PlatformEnum platform = RepoUtil.analyzePlatform(platformPath);
+        String[] segments = repoPath.split("/");
+        String namespace = (segments.length > 1) ?
+                           String.join("/", Arrays.copyOfRange(segments, 0, segments.length - 1)) :
+                           null;
+        String repoName = segments[segments.length - 1];
+        // 5. 唯一性校验
+        if (repoRepository.existsByPlatformPathAndRepoPath(platformPath, repoPath)) {
+            throw new RuntimeException("仓库已存在: " + platformPath + "/" + repoPath);
+        }
+        // 6. 构建 Repo 实体
+        Repo repo = Repo.builder()
+                        .id(IdUtil.getSnowflakeNextId())
+                        .platform(platform)
+                        .platformPath(platformPath)
+                        .repoPath(repoPath)
+                        .namespace(namespace)
+                        .repoName(repoName)
+                        .localStatus(LocalStatusEnum.INIT)
+                        .remoteStatus(RemoteStatusEnum.UNKNOWN)
+                        .ability(AbilityEnum.MEET)
+                        .build();
+        // 7. 保存
+        repoRepository.save(repo);
+        
+        log.info("仓库添加成功: {} -> {}", repo.genRelativePath(), platform.getValue());
+        
+        return repo;
     }
     
-    @Transactional
     public void syncLocalRepo() {
-        scanLocalRepo();
-        
         // 创建本地文件夹
-        FileUtil.mkdir(repoRoot + File.separator + SourceEnum.LOCAL.getValue());
-        FileUtil.mkdir(repoRoot + File.separator + SourceEnum.AI.getValue());
+        FileUtil.mkdir(RepoUtil.getLocalPath(repoProperties.getRoot()));
+        FileUtil.mkdir(RepoUtil.getAIPath(repoProperties.getRoot()));
         
-        List<Repo> repoList = repoRepository.findAll()
-                                            .stream()
-                                            .filter(Repo::hasRemote)
-                                            .filter(repo -> repo.getScanStatus().equals(LocalScanEnum.NOT_EXISTS))
-                                            .toList();
+        repoRepository.findAll().stream().filter(Repo::hasRemote).forEach(repo -> {
+            try {
+                fetchRepo(repo);
+            } catch (Exception e) {
+                log.error("同步仓库失败，跳过: {}", repo.genRelativePath(), e);
+            }
+        });
+    }
+    
+    @Async("repoExecutor")
+    public void asyncFetchRepo(Repo repo) {
+        try {
+            fetchRepo(repo);
+        } catch (Exception e) {
+            log.error("异步拉取仓库失败: {}", repo.genRelativePath(), e);
+        }
+    }
+    
+    private void fetchRepo(Repo repo) {
+        if (!repo.hasRemote()) {
+            throw new RuntimeException("不是远程仓库");
+        }
         
-        for (Repo repo : repoList) {
+        File repoFile = FileUtil.mkdir(repo.genAbsolutePath(repoProperties.getRoot()));
+        if (FileUtil.isEmpty(repoFile)) {
             // 克隆远程仓库
             repoService.cloneRepo(repo);
+        } else {
+            // 拉取远程仓库
+            repoService.pullRepo(repo);
         }
     }
     
-    @Transactional
-    public void cloneRepo(Long id) {
-        Repo repo = repoRepository.findById(id).orElseThrow(() -> new RuntimeException("仓库不存在"));
-        repoService.cloneRepo(repo);
-    }
-    
-    @Transactional
     public void cloneRepo(Repo repo) {
         if (!repo.hasRemote()) {
             throw new RuntimeException("不是远程仓库，无法克隆");
         }
         
-        String repoPath = repoRoot + File.separator + repo.getRelativePath();
-        if (FileUtil.exists(repoPath)) {
-            return;
-        }
+        File repoFile = FileUtil.mkdir(repo.genAbsolutePath(repoProperties.getRoot()));
         
-        File repoFile = FileUtil.mkdir(repoPath);
-        
-        try {
-            Git.cloneRepository()
-               .setURI(repo.getRemoteAddress())
-               .setDirectory(repoFile)
-               .setProgressMonitor(new TextProgressMonitor())
-               .call();
+        try (Git git = Git.cloneRepository()
+                          .setURI(repo.genSshUrl())
+                          .setDirectory(repoFile)
+                          .setProgressMonitor(new TextProgressMonitor())
+                          .call()) {
+            repo.setLocalStatus(LocalStatusEnum.SUCCESS);
+            log.info("SSH克隆成功: {}", repo.genRelativePath());
         } catch (Exception e) {
-            log.error("克隆远程仓库失败: {}", repo.getRemoteAddress(), e);
-            throw new RuntimeException("克隆远程仓库失败: " + repo.getRemoteAddress(), e);
-        }
-    }
-    
-    public void addRepo(String content) {
-        // 1. 清理输入：去除 "git clone " 前缀（不区分大小写）
-        String cleaned = content.trim().replaceFirst("(?i)^git\\s+clone\\s+", "");
-        
-        // 2. 解析 Git URL 提取 host/user/repo
-        Pattern httpsPattern = Pattern.compile("https://([^/]+)/([^/]+)/([^/.]+?)(?:\\.git)?$");
-        Pattern sshPattern = Pattern.compile("git@([^:]+):([^/]+)/([^/.]+?)(?:\\.git)?$");
-        
-        Matcher httpsMatcher = httpsPattern.matcher(cleaned);
-        Matcher sshMatcher = sshPattern.matcher(cleaned);
-        
-        String host, userName, repoName;
-        if (httpsMatcher.matches()) {
-            host = httpsMatcher.group(1);
-            userName = httpsMatcher.group(2);
-            repoName = httpsMatcher.group(3);
-        } else if (sshMatcher.matches()) {
-            host = sshMatcher.group(1);
-            userName = sshMatcher.group(2);
-            repoName = sshMatcher.group(3);
-        } else {
-            throw new IllegalArgumentException("无法解析的 Git 仓库地址: " + content);
-        }
-        
-        // 3. 根据 host 判断仓库来源
-        SourceEnum source = switch (host.toLowerCase()) {
-            case "github.com" -> SourceEnum.GITHUB;
-            case "gitee.com" -> SourceEnum.GITEE;
-            case "gitcode.com" -> SourceEnum.GITCODE;
-            default -> SourceEnum.GITLAB;
-        };
-
-        // 4. 计算 relativePath
-        String suffix = null;
-        String relativePath;
-        if (source == SourceEnum.GITLAB) {
-            suffix = host;
-            relativePath = source.getValue() + "_" + host + "/" + userName + "/" + repoName;
-        } else {
-            relativePath = source.getValue() + "/" + userName + "/" + repoName;
-        }
-
-        // 5. 校验仓库唯一性（以 relativePath 为准，兼容同仓库 HTTPS/SSH 双地址）
-        if (repoRepository.existsByRelativePath(relativePath)) {
-            throw new IllegalArgumentException("仓库已存在: " + relativePath);
-        }
-        
-        // 6. 构建并保存 Repo 实体
-        Repo repo = new Repo();
-        repo.setId(IdUtil.getSnowflakeNextId());
-        repo.setSource(source);
-        repo.setRemoteAddress(cleaned);
-        repo.setUserName(userName);
-        repo.setRepoName(repoName);
-        repo.setScanStatus(LocalScanEnum.NOT_EXISTS);
-        repo.setRemoteStatus(RemoteStatusEnum.ACTIVE);
-        repo.setRelativePath(relativePath);
-        if (suffix != null) {
-            repo.setSuffix(suffix);
+            log.warn("SSH克隆失败，尝试HTTPS: {}", repo.genSshUrl(), e);
+            // 清理残留
+            FileUtil.clean(repoFile);
+            try (Git git = Git.cloneRepository()
+                              .setURI(repo.genHttpsUrl())
+                              .setDirectory(repoFile)
+                              .setProgressMonitor(new TextProgressMonitor())
+                              .call()) {
+                repo.setLocalStatus(LocalStatusEnum.SUCCESS);
+                log.info("HTTPS克隆成功: {}", repo.genRelativePath());
+            } catch (Exception e1) {
+                log.error("HTTPS克隆失败: {}", repo.genHttpsUrl(), e1);
+                // 清理残留
+                FileUtil.clean(repoFile);
+                repo.setLocalStatus(LocalStatusEnum.FAIL);
+            }
         }
         
         repoRepository.save(repo);
-        log.info("添加仓库成功: {} [{}/{}]", source.getValue(), userName, repoName);
-        
-        cloneRepo(repo);
     }
     
-    public void pullRepo(Long id) {
-        Repo repo = repoRepository.findById(id).orElseThrow(() -> new RuntimeException("仓库不存在"));
-        
+    public void pullRepo(Repo repo) {
         if (!repo.hasRemote()) {
             throw new RuntimeException("不是远程仓库，无法拉取");
         }
         
-        String repoPath = repoRoot + File.separator + repo.getRelativePath();
-        if (!FileUtil.exists(repoPath)) {
-            throw new RuntimeException("本地仓库不存在，请先克隆: " + repo.getRemoteAddress());
+        File repoFile = FileUtil.file(repo.genAbsolutePath(repoProperties.getRoot()));
+        
+        try (Git git = Git.open(repoFile)) {
+            PullResult pullResult = git.pull().setProgressMonitor(new TextProgressMonitor()).call();
+            if (!pullResult.isSuccessful()) {
+                log.warn("拉取结果不是最新: {}", repo.genRelativePath());
+                repo.setLocalStatus(LocalStatusEnum.FAIL);
+            }
+            repo.setLocalStatus(LocalStatusEnum.SUCCESS);
+        } catch (Exception e) {
+            log.error("拉取仓库失败: {}", repo.genRelativePath(), e);
+            repo.setLocalStatus(LocalStatusEnum.FAIL);
         }
         
-        try (Git git = Git.open(new File(repoPath))) {
-            PullResult result = git.pull().call();
-            
-            if (!result.isSuccessful()) {
-                log.warn("拉取仓库失败: {} [{}/{}]", repo.getSource()
-                                                         .getValue(), repo.getUserName(), repo.getRepoName());
-                return;
-            }
-            
-            MergeResult mergeResult = result.getMergeResult();
-            if (mergeResult != null && mergeResult.getConflicts() != null && !mergeResult.getConflicts().isEmpty()) {
-                repo.setRemoteStatus(RemoteStatusEnum.CONFLICT);
-                log.warn("拉取存在冲突: {} [{}/{}]", repo.getSource()
-                                                         .getValue(), repo.getUserName(), repo.getRepoName());
-            } else {
-                repo.setRemoteStatus(RemoteStatusEnum.ACTIVE);
-                log.info("拉取成功: {} [{}/{}]", repo.getSource().getValue(), repo.getUserName(), repo.getRepoName());
-            }
-            
-            repoRepository.save(repo);
-        } catch (Exception e) {
-            log.error("拉取仓库异常: {}", repo.getRemoteAddress(), e);
-            throw new RuntimeException("拉取仓库异常: " + repo.getRemoteAddress(), e);
-        }
+        repoRepository.save(repo);
     }
     
-    public void updateAbility(Long id, String ability) {
-        // todo 更新能力
+    public void updateAbility(Repo repo, AbilityEnum ability) {
+        repo.setAbility(ability);
+        repoRepository.save(repo);
+    }
+    
+    public List<Repo> listRepos() {
+        return repoRepository.findAll();
+    }
+    
+    public Repo checkRepoId(Long id) {
+        return repoRepository.findById(id).orElseThrow(() -> new RuntimeException("仓库不存在"));
     }
 }

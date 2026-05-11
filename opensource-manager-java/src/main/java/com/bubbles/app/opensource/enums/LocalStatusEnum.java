@@ -4,17 +4,18 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * <p>description: 本地扫描状态 </p>
+ * <p>description: 本地状态 </p>
  *
  * @author CryptoNeedle
  * @date 2026-04-28
  */
 @Getter
 @AllArgsConstructor
-public enum LocalScanEnum {
+public enum LocalStatusEnum {
     
-    EXISTS("匹配"),
-    NOT_EXISTS("不存在"),
+    INIT("初始化"),
+    SUCCESS("成功"),
+    FAIL("失败"),
     ;
     
     private final String value;

@@ -2,6 +2,7 @@ package com.bubbles.app.opensource;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableAsync;
 
 /**
  * <p>description:  </p>
@@ -12,7 +13,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class OpenSourceManagerApplication {
     
-    public static void main(String[] args) {
+    static void main(String[] args) {
         SpringApplication.run(OpenSourceManagerApplication.class);
     }
 }

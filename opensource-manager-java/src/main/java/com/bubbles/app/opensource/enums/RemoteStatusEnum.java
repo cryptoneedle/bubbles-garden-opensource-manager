@@ -13,6 +13,7 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum RemoteStatusEnum {
     
+    UNKNOWN("未知"),
     CONFLICT("冲突"),
     ACTIVE("活跃"),
     ARCHIVED("归档"),

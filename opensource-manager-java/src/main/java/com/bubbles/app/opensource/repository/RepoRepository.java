@@ -15,5 +15,5 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface RepoRepository extends JpaRepository<Repo, Long>, JpaSpecificationExecutor<Repo> {
 
-    boolean existsByRelativePath(String relativePath);
+    boolean existsByPlatformPathAndRepoPath(String platformPath, String repoPath);
 }

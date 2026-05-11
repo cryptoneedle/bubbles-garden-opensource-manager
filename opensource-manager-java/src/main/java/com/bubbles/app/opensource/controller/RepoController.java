@@ -1,10 +1,13 @@
 package com.bubbles.app.opensource.controller;
 
+import com.bubbles.app.opensource.entity.Repo;
+import com.bubbles.app.opensource.enums.AbilityEnum;
 import com.bubbles.app.opensource.service.RepoService;
 import com.bubbles.common.core.Result;
-import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * <p>description:  </p>
@@ -19,10 +22,16 @@ public class RepoController {
     @Autowired
     private RepoService repoService;
     
-    @PostMapping("/scan")
-    public Result<?> scanLocalRepo() {
-        repoService.scanLocalRepo();
-        return Result.success();
+    @PostMapping("/add")
+    public Result<Repo> addRepo(@RequestParam("content") String content) {
+        Repo repo = repoService.addRepo(content);
+        repoService.asyncFetchRepo(repo);
+        return Result.success(repo);
+    }
+    
+    @PostMapping("/list")
+    public Result<List<Repo>> listRepos() {
+        return Result.success(repoService.listRepos());
     }
     
     @PostMapping("/sync")
@@ -31,27 +40,17 @@ public class RepoController {
         return Result.success();
     }
     
-    @PostMapping("/add")
-    public Result<?> addRepo(@RequestParam("content") String content) {
-        repoService.addRepo(content);
-        return Result.success();
-    }
-    
-    @PostMapping("/{id}/clone")
-    public Result<?>  clone(@PathVariable("id") Long id) {
-        repoService.cloneRepo(id);
-        return Result.success();
-    }
-    
-    @PostMapping("/{id}/pull")
+    @PostMapping("/{id}/fetch")
     public Result<?> pull(@PathVariable("id") Long id) {
-        repoService.pullRepo(id);
+        Repo repo = repoService.checkRepoId(id);
+        repoService.pullRepo(repo);
         return Result.success();
     }
     
     @PutMapping("/{id}/ability")
-    public Result<?>  updateAbility(@PathVariable Long id, @RequestParam("ability") String ability) {
-        repoService.updateAbility(id, ability);
+    public Result<?>  updateAbility(@PathVariable Long id, @RequestParam("ability") AbilityEnum ability) {
+        Repo repo = repoService.checkRepoId(id);
+        repoService.updateAbility(repo, ability);
         return Result.success();
     }
 }
