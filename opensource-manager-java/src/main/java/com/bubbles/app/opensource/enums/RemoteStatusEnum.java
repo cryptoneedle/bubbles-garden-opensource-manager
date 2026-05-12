@@ -16,7 +16,6 @@ import java.rmi.Remote;
 public enum RemoteStatusEnum {
     
     UNKNOWN("未知"),
-    CONFLICT("冲突"),
     ACTIVE("活跃"),
     ARCHIVED("归档"),
     NOT_FOUND("未找到"),

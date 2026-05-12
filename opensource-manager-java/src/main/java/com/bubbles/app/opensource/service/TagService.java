@@ -43,7 +43,7 @@ public class TagService {
      * 删除标签（同时清理与仓库的关联）
      */
     @Transactional
-    public void deleteRag(Long id) {
+    public void deleteTag(Long id) {
         if (!tagRepository.existsById(id)) {
             throw new IllegalArgumentException("标签不存在: " + id);
         }

@@ -19,6 +19,7 @@ public enum LocalStatusEnum {
     INIT("初始化"),
     SUCCESS("成功"),
     FAIL("失败"),
+    CONFLICT("冲突"),
     ;
     
     private final String value;
