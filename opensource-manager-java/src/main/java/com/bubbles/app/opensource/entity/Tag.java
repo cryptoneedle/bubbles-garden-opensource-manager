@@ -1,5 +1,9 @@
 package com.bubbles.app.opensource.entity;
 
+import com.bubbles.app.opensource.enums.AbilityEnum;
+import com.bubbles.app.opensource.enums.LocalStatusEnum;
+import com.bubbles.app.opensource.enums.PlatformEnum;
+import com.bubbles.app.opensource.enums.RemoteStatusEnum;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.Accessors;

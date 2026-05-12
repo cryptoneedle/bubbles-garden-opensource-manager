@@ -2,6 +2,9 @@ package com.bubbles.app.opensource.enums;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import org.springframework.cglib.core.Local;
+
+import java.rmi.Remote;
 
 /**
  * <p>description: 本地状态 </p>

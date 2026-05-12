@@ -3,6 +3,8 @@ package com.bubbles.app.opensource.enums;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import java.rmi.Remote;
+
 /**
  * <p>description: 远程仓库状态 </p>
  *

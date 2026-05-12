@@ -8,7 +8,9 @@ import com.bubbles.app.opensource.enums.LocalStatusEnum;
 import com.bubbles.app.opensource.enums.PlatformEnum;
 import com.bubbles.app.opensource.enums.RemoteStatusEnum;
 import com.bubbles.app.opensource.properties.RepoProperties;
+import com.bubbles.app.opensource.entity.Tag;
 import com.bubbles.app.opensource.repository.RepoRepository;
+import com.bubbles.app.opensource.repository.TagRepository;
 import com.bubbles.app.opensource.util.RepoUtil;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
@@ -22,8 +24,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -41,8 +42,15 @@ public class RepoService {
     @Autowired
     private RepoService repoService;
     
+    @Lazy
+    @Autowired
+    private TagService tagService;
+    
     @Autowired
     private RepoRepository repoRepository;
+
+    @Autowired
+    private TagRepository tagRepository;
     
     @Autowired
     private RepoProperties repoProperties;
@@ -200,6 +208,17 @@ public class RepoService {
         return repoRepository.findAll();
     }
     
+    @Transactional
+    public void relyTags(Repo repo, List<Long> tagIds) {
+        if (tagIds == null || tagIds.isEmpty()) {
+            repo.setTags(new HashSet<>());
+        } else {
+            Set<Tag> tags = new HashSet<>(tagRepository.findAllById(tagIds));
+            repo.setTags(tags);
+        }
+        repoRepository.save(repo);
+    }
+
     public Repo checkRepoId(Long id) {
         return repoRepository.findById(id).orElseThrow(() -> new RuntimeException("仓库不存在"));
     }

@@ -48,9 +48,16 @@ public class RepoController {
     }
     
     @PutMapping("/{id}/ability")
-    public Result<?>  updateAbility(@PathVariable Long id, @RequestParam("ability") AbilityEnum ability) {
+    public Result<?> updateAbility(@PathVariable Long id, @RequestParam("ability") AbilityEnum ability) {
         Repo repo = repoService.checkRepoId(id);
         repoService.updateAbility(repo, ability);
+        return Result.success();
+    }
+    
+    @PostMapping("/{id}/tag/rely")
+    public Result<?> relyTags(@PathVariable Long id, @RequestBody List<Long> tagIds) {
+        Repo repo = repoService.checkRepoId(id);
+        repoService.relyTags(repo, tagIds);
         return Result.success();
     }
 }
