@@ -4,6 +4,7 @@ import com.bubbles.app.opensource.enums.AbilityEnum;
 import com.bubbles.app.opensource.enums.LocalStatusEnum;
 import com.bubbles.app.opensource.enums.PlatformEnum;
 import com.bubbles.app.opensource.enums.RemoteStatusEnum;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.Accessors;
@@ -28,20 +29,25 @@ import java.util.Set;
 @Entity
 @EntityListeners(AuditingEntityListener.class)
 @Table(name = "tag", comment = "标签")
+@Schema(description = "标签")
 public class Tag {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(comment = "主键")
+    @Schema(description = "主键")
     private Long id;
 
     @Column(comment = "标签名")
+    @Schema(description = "标签名")
     private String name;
     
     @Column(comment = "颜色")
+    @Schema(description = "颜色")
     private String color;
     
     @Column(comment = "排序")
+    @Schema(description = "排序")
     private Integer sort;
     
     @Builder.Default

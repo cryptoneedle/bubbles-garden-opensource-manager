@@ -43,7 +43,7 @@ public class RepoController {
     @PostMapping("/{id}/fetch")
     public Result<?> pull(@PathVariable("id") Long id) {
         Repo repo = repoService.checkRepoId(id);
-        repoService.pullRepo(repo);
+        repoService.fetchRepo(repo);
         return Result.success();
     }
     
@@ -58,6 +58,23 @@ public class RepoController {
     public Result<?> relyTags(@PathVariable Long id, @RequestBody List<Long> tagIds) {
         Repo repo = repoService.checkRepoId(id);
         repoService.relyTags(repo, tagIds);
+        return Result.success();
+    }
+    
+    @DeleteMapping("/{id}")
+    public Result<?> deleteRepo(@PathVariable Long id) {
+        repoService.deleteRepo(id);
+        return Result.success();
+    }
+    
+    @PostMapping("/{id}/metadata")
+    public Result<Repo> refreshMetadata(@PathVariable Long id) {
+        return Result.success(repoService.refreshMetadata(id));
+    }
+    
+    @PostMapping("/metadata/refresh-all")
+    public Result<?> refreshAllMetadata() {
+        repoService.asyncRefreshAllMetadata();
         return Result.success();
     }
 }

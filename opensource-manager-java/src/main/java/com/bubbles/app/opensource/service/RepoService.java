@@ -48,12 +48,15 @@ public class RepoService {
     
     @Autowired
     private RepoRepository repoRepository;
-
+    
     @Autowired
     private TagRepository tagRepository;
     
     @Autowired
     private RepoProperties repoProperties;
+    
+    @Autowired
+    private RemoteStatusChecker remoteStatusChecker;
     
     private static final Pattern GIT_URL_PATTERN = Pattern.compile("^(?:https://|git@)([^/:]+(?::\\d+)?)[/:](.+?)(?:\\.git)?(?:#.*)?/?$");
     
@@ -126,7 +129,7 @@ public class RepoService {
         }
     }
     
-    private void fetchRepo(Repo repo) {
+    public void fetchRepo(Repo repo) {
         if (!repo.hasRemote()) {
             throw new RuntimeException("不是远程仓库");
         }
@@ -139,6 +142,12 @@ public class RepoService {
             // 拉取远程仓库
             repoService.pullRepo(repo);
         }
+        
+        // 刷新远程仓库状态 + 元数据（一次性完成）
+        remoteStatusChecker.refreshMetadata(repo);
+        
+        repoRepository.save(repo);
+        log.info("远程仓库状态: {} -> {}", repo.genRelativePath(), repo.getRemoteStatus().getValue());
     }
     
     public void cloneRepo(Repo repo) {
@@ -148,22 +157,24 @@ public class RepoService {
         
         File repoFile = FileUtil.mkdir(repo.genAbsolutePath(repoProperties.getRoot()));
         
-        try (Git git = Git.cloneRepository()
-                          .setURI(repo.genSshUrl())
-                          .setDirectory(repoFile)
-                          .setProgressMonitor(new TextProgressMonitor())
-                          .call()) {
+        try {
+            Git git = Git.cloneRepository()
+                         .setURI(repo.genSshUrl())
+                         .setDirectory(repoFile)
+                         .setProgressMonitor(new TextProgressMonitor())
+                         .call();
             repo.setLocalStatus(LocalStatusEnum.SUCCESS);
             log.info("SSH克隆成功: {}", repo.genRelativePath());
         } catch (Exception e) {
             log.warn("SSH克隆失败，尝试HTTPS: {}", repo.genSshUrl(), e);
             // 清理残留
             FileUtil.clean(repoFile);
-            try (Git git = Git.cloneRepository()
-                              .setURI(repo.genHttpsUrl())
-                              .setDirectory(repoFile)
-                              .setProgressMonitor(new TextProgressMonitor())
-                              .call()) {
+            try {
+                Git git = Git.cloneRepository()
+                             .setURI(repo.genHttpsUrl())
+                             .setDirectory(repoFile)
+                             .setProgressMonitor(new TextProgressMonitor())
+                             .call();
                 repo.setLocalStatus(LocalStatusEnum.SUCCESS);
                 log.info("HTTPS克隆成功: {}", repo.genRelativePath());
             } catch (Exception e1) {
@@ -185,7 +196,7 @@ public class RepoService {
         File repoFile = FileUtil.file(repo.genAbsolutePath(repoProperties.getRoot()));
         
         try (Git git = Git.open(repoFile)) {
-            PullResult pullResult = git.pull().setProgressMonitor(new TextProgressMonitor()).call();
+            PullResult pullResult = git.pull().setRemoteBranchName(repo.getDefaultBranch()).setProgressMonitor(new TextProgressMonitor()).call();
             if (!pullResult.isSuccessful()) {
                 log.warn("拉取结果不是最新: {}", repo.genRelativePath());
                 repo.setLocalStatus(LocalStatusEnum.FAIL);
@@ -218,8 +229,53 @@ public class RepoService {
         }
         repoRepository.save(repo);
     }
-
+    
     public Repo checkRepoId(Long id) {
         return repoRepository.findById(id).orElseThrow(() -> new RuntimeException("仓库不存在"));
+    }
+    
+    public void deleteRepo(Long id) {
+        Repo repo = repoRepository.getReferenceById(id);
+        repoRepository.deleteById(id);
+        FileUtil.del(repo.genAbsolutePath(repoProperties.getRoot()));
+    }
+    
+    /**
+     * 刷新单个仓库的远程元数据（状态 + Star/Fork/Watch/语言/描述/最后提交/默认分支）
+     */
+    public Repo refreshMetadata(Long id) {
+        Repo repo = checkRepoId(id);
+        if (!repo.hasRemote()) {
+            throw new RuntimeException("本地仓库不支持元数据刷新");
+        }
+        remoteStatusChecker.refreshMetadata(repo);
+        repoRepository.save(repo);
+        log.info("仓库元数据刷新完成: {} status={} stars={}",
+                 repo.genRelativePath(), repo.getRemoteStatus().getValue(), repo.getStars());
+        return repo;
+    }
+    
+    /**
+     * 异步刷新所有远程仓库的元数据
+     */
+    @Async("repoExecutor")
+    public void asyncRefreshAllMetadata() {
+        List<Repo> repos = repoRepository.findAll().stream()
+                                         .filter(Repo::hasRemote)
+                                         .toList();
+        log.info("开始批量刷新仓库元数据，共 {} 个远程仓库", repos.size());
+        for (Repo repo : repos) {
+            refreshMetadata(repo);
+        }
+        log.info("批量刷新仓库元数据完成");
+    }
+    
+    public void refreshMetadata(Repo repo) {
+        try {
+            remoteStatusChecker.refreshMetadata(repo);
+            repoRepository.save(repo);
+        } catch (Exception e) {
+            log.error("刷新仓库元数据失败，跳过: {}", repo.genRelativePath(), e);
+        }
     }
 }

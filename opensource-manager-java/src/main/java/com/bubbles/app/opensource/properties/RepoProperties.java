@@ -20,6 +20,11 @@ public class RepoProperties {
     
     private String root;
     
+    private String githubToken;
+    private String giteeToken;
+    private String gitcodeToken;
+    private String gitlabToken;
+    
     @PostConstruct
     public void init() {
         log.info("RepoRoot value is: {}", this.root);

@@ -15,6 +15,7 @@ import java.rmi.Remote;
 @AllArgsConstructor
 public enum RemoteStatusEnum {
     
+    LOCAL("本地"),
     UNKNOWN("未知"),
     ACTIVE("活跃"),
     ARCHIVED("归档"),
